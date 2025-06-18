@@ -7,6 +7,11 @@ from compareFunc import compare_trees_for_ui
 st.set_page_config(page_title="Tree Diff Viewer", layout="wide")
 st.title("🌳 Organizational Tree Diff Viewer")
 
+# ---- Theme switcher ----
+theme = st.selectbox("Choose theme:", ["🌞 Light", "🌙 Dark"])
+IS_DARK = theme == "🌙 Dark"
+
+# ---- Display Mode Selector ----
 display_mode = st.radio(
     "Choose how to display the comparison results:",
     ("Table View", "Tree View", "Visual Tree")
@@ -107,7 +112,13 @@ def build_html_tree_highlighted(tree, highlight_set=None, color=None):
         return ''.join([build_html_tree_highlighted(node, highlight_set, color) for node in tree])
 
     label = tree.get("name", "Unnamed")
-    tooltip = "<br>".join(f"{k}: {v}" for k, v in tree.items() if k not in ("children", "__source__"))
+    tooltip_data = {k: v for k, v in tree.items() if k not in ("children", "__source__")}
+
+    # Easter egg: if node name is "42"
+    if label == "42":
+        tooltip_data["easter_egg"] = "🪐 The Answer to Life, the Universe, and Everything"
+
+    tooltip = "<br>".join(f"{k}: {v}" for k, v in tooltip_data.items())
 
     node_class = ""
     style_attr = ""
@@ -119,10 +130,8 @@ def build_html_tree_highlighted(tree, highlight_set=None, color=None):
     elif "__source__" in tree:
         source = tree["__source__"]
         if source == "a":
-            node_class = "highlight"
             style_attr = ' style="background-color:#e74c3c; color:white; border-color:#e74c3c; font-weight:bold;"'
         elif source == "b":
-            node_class = "highlight"
             style_attr = ' style="background-color:#2ecc71; color:white; border-color:#2ecc71; font-weight:bold;"'
 
     children = tree.get("children", [])
@@ -146,6 +155,8 @@ def display_visual_tree_with_highlight(full_tree, highlight_nodes, color, layout
     html_body = build_html_tree_highlighted(full_tree, highlight_nodes, color)
 
     orientation_class = "tree-vertical" if layout == "vertical" else "tree-horizontal"
+    bg_color = "#111" if IS_DARK else "#fafafa"
+    text_color = "#eee" if IS_DARK else "#000"
 
     html = f"""
     <div>
@@ -180,19 +191,17 @@ def display_visual_tree_with_highlight(full_tree, highlight_nodes, color, layout
     .tree-container {{
         overflow: auto;
         padding: 20px;
-        background: #fafafa;
+        background: {bg_color};
+        color: {text_color};
         border: 1px solid #ddd;
         border-radius: 8px;
         max-height: 700px;
     }}
-
     .tree {{
         padding-left: 0;
         list-style-type: none;
-        position: relative;
         font-family: monospace;
     }}
-
     .tree-vertical .tree ul::before {{
         content: '';
         position: absolute;
@@ -201,13 +210,11 @@ def display_visual_tree_with_highlight(full_tree, highlight_nodes, color, layout
         border-left: 2px solid #ccc;
         height: 100%;
     }}
-
     .tree-vertical .tree li {{
         margin: 0;
         padding: 0 0 0 20px;
         position: relative;
     }}
-
     .tree-vertical .tree li::before {{
         content: '';
         position: absolute;
@@ -217,63 +224,49 @@ def display_visual_tree_with_highlight(full_tree, highlight_nodes, color, layout
         height: 0;
         border-top: 2px solid #ccc;
     }}
-
     .tree-horizontal .tree {{
         display: flex;
         flex-direction: row;
     }}
-
     .tree-horizontal .tree li {{
         list-style: none;
         padding: 0 20px;
-        position: relative;
         display: flex;
         flex-direction: column;
         align-items: center;
     }}
-
     .tree-horizontal .tree li::before {{
         content: '';
         position: absolute;
         left: 50%;
         top: -20px;
-        width: 0;
         height: 20px;
         border-left: 2px solid #ccc;
     }}
-
     .tree-horizontal .tree ul {{
         display: flex;
         justify-content: center;
         padding: 20px 0 0 0;
     }}
-
     .node {{
         cursor: pointer;
         display: inline-block;
         padding: 5px 10px;
         margin: 0.5em 0;
-        background-color: #f0f0f0;
+        background-color: #44444411;
         border: 1px solid #ccc;
         border-radius: 6px;
         font-size: 14px;
         position: relative;
     }}
-
     .node:hover {{
-        background-color: #ddd;
-    }}
-
-    .highlight {{
-        background-color: {color};
-        color: white;
-        font-weight: bold;
-        border-color: {color};
+        background-color: #aaa;
     }}
     </style>
     """
     components.html(html, height=750, scrolling=True)
 
+# ---- Comparison Trigger ----
 if st.button("🔍 Compare Trees"):
     try:
         tree_a = json.loads(tree_a_input)
@@ -308,3 +301,12 @@ if st.button("🔍 Compare Trees"):
 
     except Exception as e:
         st.error(f"❌ Invalid JSON or comparison error: {e}")
+
+
+# Hidden text input to capture key presses
+key_seq = st.text_input("סוד??????:", key="key_capture", value="", max_chars=10)
+
+if len(key_seq) >= 2 and key_seq[-2:].lower() == "שי":
+    st.balloons()
+    # Clear input after showing balloons so it doesn't fire repeatedly
+
