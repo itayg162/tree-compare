@@ -12,19 +12,29 @@ display_mode = st.radio(
     ("Table View", "Tree View", "Visual Tree")
 )
 
+def tree_input(label_prefix):
+    method = st.radio(
+        f"How would you like to provide {label_prefix}?",
+        ("Paste JSON", "Upload File"),
+        key=f"input_method_{label_prefix}"
+    )
+    if method == "Paste JSON":
+        return st.text_area(f"{label_prefix} JSON", height=300)
+    elif method == "Upload File":
+        uploaded = st.file_uploader(f"Upload {label_prefix} JSON file", type="json", key=f"upload_{label_prefix}")
+        if uploaded:
+            return uploaded.read().decode("utf-8")
+        return ""
+
 col1, col2 = st.columns(2)
-
 with col1:
-    st.subheader("📂 Tree A (JSON)")
-    tree_a_input = st.text_area("Paste JSON for Tree A", height=400)
-
+    st.subheader("📂 Tree A")
+    tree_a_input = tree_input("Tree A")
 with col2:
-    st.subheader("📁 Tree B (JSON)")
-    tree_b_input = st.text_area("Paste JSON for Tree B", height=400)
-
+    st.subheader("📁 Tree B")
+    tree_b_input = tree_input("Tree B")
 
 def merge_trees(a, b):
-    """Recursively merge two trees by name."""
     if not isinstance(a, list): a = [a]
     if not isinstance(b, list): b = [b]
 
@@ -41,7 +51,6 @@ def merge_trees(a, b):
         node_a = dict_a.get(name)
         node_b = dict_b.get(name)
 
-        # Tag source
         if node_a and node_b:
             node["__source__"] = "both"
         elif node_a:
@@ -49,12 +58,10 @@ def merge_trees(a, b):
         elif node_b:
             node["__source__"] = "b"
 
-        # Merge metadata
         for k in set((node_a or {}).keys()).union((node_b or {}).keys()):
             if k not in ("name", "children"):
                 node[k] = (node_a or {}).get(k) or (node_b or {}).get(k)
 
-        # Merge children
         children_a = node_a.get("children", []) if node_a else []
         children_b = node_b.get("children", []) if node_b else []
         merged_children = merge_trees(children_a, children_b)
@@ -64,7 +71,6 @@ def merge_trees(a, b):
         merged.append(node)
 
     return merged
-
 
 def render_tree(nodes, parent_label=""):
     if isinstance(nodes, pd.DataFrame):
@@ -81,7 +87,6 @@ def render_tree(nodes, parent_label=""):
                 render_tree(node["children"], parent_label="  ")
 
 def extract_node_ids(nodes):
-    """Flatten a tree into a set of unique IDs or names (depending on your structure)."""
     found = set()
     if isinstance(nodes, pd.DataFrame):
         nodes = nodes.to_dict(orient="records")
@@ -104,17 +109,14 @@ def build_html_tree_highlighted(tree, highlight_set=None, color=None):
     label = tree.get("name", "Unnamed")
     tooltip = "<br>".join(f"{k}: {v}" for k, v in tree.items() if k not in ("children", "__source__"))
 
-    # Default values
     node_class = ""
     style_attr = ""
 
     if highlight_set is not None and color:
-        # For Tree A / Tree B views
         if label in highlight_set:
             node_class = "highlight"
             style_attr = f' style="background-color:{color}; color:white; border-color:{color}; font-weight:bold;"'
     elif "__source__" in tree:
-        # For combined tree view
         source = tree["__source__"]
         if source == "a":
             node_class = "highlight"
@@ -122,7 +124,6 @@ def build_html_tree_highlighted(tree, highlight_set=None, color=None):
         elif source == "b":
             node_class = "highlight"
             style_attr = ' style="background-color:#2ecc71; color:white; border-color:#2ecc71; font-weight:bold;"'
-        # source == "both" → white, no class or style
 
     children = tree.get("children", [])
     children_html = ""
@@ -140,10 +141,6 @@ def build_html_tree_highlighted(tree, highlight_set=None, color=None):
     </li>
     '''
     return html
-
-
-
-
 
 def display_visual_tree_with_highlight(full_tree, highlight_nodes, color, layout="vertical"):
     html_body = build_html_tree_highlighted(full_tree, highlight_nodes, color)
@@ -277,45 +274,37 @@ def display_visual_tree_with_highlight(full_tree, highlight_nodes, color, layout
     """
     components.html(html, height=750, scrolling=True)
 
-
-
 if st.button("🔍 Compare Trees"):
     try:
         tree_a = json.loads(tree_a_input)
         tree_b = json.loads(tree_b_input)
         only_in_a, only_in_b = compare_trees_for_ui(tree_a, tree_b)
-
-        # Extract unique node names
         unique_names_in_a = extract_node_ids(only_in_a)
         unique_names_in_b = extract_node_ids(only_in_b)
 
         tab1, tab2, tab3 = st.tabs(["🔴 Only in Tree A", "🟢 Only in Tree B", "⚪ Combined Tree"])
-
         with tab1:
             st.write(f"Found {len(unique_names_in_a)} unique node(s) in Tree A.")
-
             if display_mode == "Table View":
                 st.dataframe(only_in_a)
             elif display_mode == "Tree View":
                 render_tree(only_in_a)
             elif display_mode == "Visual Tree":
-                display_visual_tree_with_highlight(tree_a, unique_names_in_a, "#e74c3c")  # red
+                display_visual_tree_with_highlight(tree_a, unique_names_in_a, "#e74c3c")
 
         with tab2:
             st.write(f"Found {len(unique_names_in_b)} unique node(s) in Tree B.")
-
             if display_mode == "Table View":
                 st.dataframe(only_in_b)
             elif display_mode == "Tree View":
                 render_tree(only_in_b)
             elif display_mode == "Visual Tree":
-                display_visual_tree_with_highlight(tree_b, unique_names_in_b, "#2ecc71")  # green
+                display_visual_tree_with_highlight(tree_b, unique_names_in_b, "#2ecc71")
 
         with tab3:
             st.write("Combined Tree highlighting only-in-A (🔴), only-in-B (🟢), and both (⚪).")
-
             merged_tree = merge_trees(tree_a, tree_b)
-            display_visual_tree_with_highlight(merged_tree, set(), "")  # No highlight set needed; handled per node
+            display_visual_tree_with_highlight(merged_tree, set(), "")  # Combined coloring handled internally
 
     except Exception as e:
         st.error(f"❌ Invalid JSON or comparison error: {e}")
